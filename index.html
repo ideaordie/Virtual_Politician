@@ -2375,6 +2375,15 @@ h1 .mini-politician .mini-mouth {
   border-radius: 0 !important;
 }
 
+
+/* v3.7.19 centered question placeholder text */
+#questionInput,
+textarea,
+textarea::placeholder,
+#questionInput::placeholder {
+  text-align: center !important;
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 async function submitQuestionViaRPC(question, xHandle = "") {
@@ -2416,8 +2425,8 @@ async function submitQuestionViaRPC(question, xHandle = "") {
 
     <section class="question-box">
       
-      <textarea id="question" placeholder="Enter a question here! (Do not enter personal information)
-
+      <textarea id="question" placeholder="Enter a question here!
+Do not enter personal information
 OPTIONAL: Enter your X handle below for a chance to win QUESTION OF THE DAY!"></textarea>
 <div class="x-handle-wrap">
 
@@ -5379,6 +5388,15 @@ h1 .mini-politician .mini-mouth {
   height: 0 !important;
   border-bottom-width: 0.024em !important;
   border-radius: 0 !important;
+}
+
+
+/* v3.7.19 centered question placeholder text */
+#questionInput,
+textarea,
+textarea::placeholder,
+#questionInput::placeholder {
+  text-align: center !important;
 }
 
 </style>
