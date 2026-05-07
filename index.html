@@ -2390,6 +2390,72 @@ textarea::placeholder,
   animation-timing-function: ease-in-out !important;
 }
 
+
+/* v3.8.1 rank unlock viral mechanic */
+.rank-unlock-panel {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  text-align: center;
+  animation: fadeRankPanel 0.35s ease;
+}
+
+.rank-unlock-panel.hidden {
+  display: none;
+}
+
+.rank-lock-title {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-size: clamp(1rem, 3vw, 1.18rem);
+}
+
+.rank-lock-subtitle {
+  margin-top: 10px;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.4;
+  font-size: clamp(0.84rem, 2.4vw, 0.98rem);
+}
+
+.share-unlock-btn {
+  margin-top: 14px;
+  width: 100%;
+  border: 0;
+  border-radius: 18px;
+  padding: 14px 18px;
+  background: white;
+  color: black;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.share-unlock-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0) 0%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  transform: skewX(-25deg);
+  animation: shimmer 2.5s infinite;
+}
+
+@keyframes fadeRankPanel {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 async function submitQuestionViaRPC(question, xHandle = "") {
@@ -2516,6 +2582,15 @@ OPTIONAL: Enter your X handle below for a chance to win QUESTION OF THE DAY!"></
     <div style="margin-top:10px; font-size:0.8rem; letter-spacing:0.08em; opacity:0.6; text-transform:uppercase;"></div>
 
     <div id="reply" class="reply" aria-live="polite">No.</div>
+
+    
+    <div id="rankUnlockPanel" class="rank-unlock-panel hidden">
+      <div class="rank-lock-title">🔒 UNLOCK YOUR RANK</div>
+      <div class="rank-lock-subtitle">Share your result on 𝕏 to reveal your leaderboard rank</div>
+      <button id="shareUnlockBtn" class="share-unlock-btn" type="button">
+        SHARE ON 𝕏 TO UNLOCK
+      </button>
+    </div>
 
     <div class="real-politician-after-response">
       <a class="link-button" href="https://www.senate.gov/senators/senators-contact.htm" target="_blank" rel="noopener noreferrer">
@@ -3482,6 +3557,7 @@ async function answerQuestion() {
   askBtn.style.cursor = "not-allowed";
 
   reply.classList.remove("show");
+  resetRankUnlock();
 
   const realPoliticianButton = document.querySelector(".real-politician-after-response");
   if (realPoliticianButton) {
@@ -3506,7 +3582,8 @@ async function answerQuestion() {
 
   setTimeout(() => {
     journeyStage.classList.remove("show");
-    reply.textContent = getRandomResponse();
+    const responseTextForShare = getRandomResponse();
+    reply.textContent = responseTextForShare;
     reply.classList.add("show");
     playFartBurst();
 
@@ -3519,8 +3596,9 @@ async function answerQuestion() {
         : "Your question was added to the leaderboard";
 
       setTimeout(() => {
-        reply.textContent = safeRankMessage;
+        reply.textContent = "Your leaderboard rank is ready.";
         reply.classList.add("show");
+        showRankUnlock(submittedQuestion, responseTextForShare, safeRankMessage);
         revealTopQuestionsPanel();
         loadQuestionOfTheDay();
 
@@ -4095,6 +4173,64 @@ async function submitQuestionViaRPC(question, xHandle = "") {
     console.log("RPC failure:", e);
     return "Your question was added to the leaderboard";
   }
+}
+
+
+/* v3.8.1 share-to-unlock rank */
+let latestQuestionText = "";
+let latestResponseText = "";
+let latestRankText = "";
+
+function resetRankUnlock() {
+  const panel = document.getElementById("rankUnlockPanel");
+  if (!panel) return;
+
+  panel.classList.add("hidden");
+  panel.innerHTML = `
+    <div class="rank-lock-title">🔒 UNLOCK YOUR RANK</div>
+    <div class="rank-lock-subtitle">Share your result on 𝕏 to reveal your leaderboard rank</div>
+    <button id="shareUnlockBtn" class="share-unlock-btn" type="button">
+      SHARE ON 𝕏 TO UNLOCK
+    </button>
+  `;
+}
+
+function showRankUnlock(questionText, responseText, rankText) {
+  latestQuestionText = questionText || "";
+  latestResponseText = responseText || "";
+  latestRankText = rankText || "";
+
+  const panel = document.getElementById("rankUnlockPanel");
+  if (!panel) return;
+
+  panel.classList.remove("hidden");
+
+  const btn = document.getElementById("shareUnlockBtn");
+  if (!btn) return;
+
+  btn.onclick = () => {
+    const shareText =
+`I asked Virtual Politician:
+
+"${latestQuestionText}"
+
+The answer was:
+"${latestResponseText}"
+
+${latestRankText.replace("Your question", "My question")}. 👍`;
+
+    const url = "https://twitter.com/intent/tweet?text=" +
+      encodeURIComponent(shareText + "\n\nhttps://ideaordie.github.io/Virtual_Politician/");
+
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    setTimeout(() => {
+      panel.innerHTML = `
+        <div class="rank-lock-title">RANK UNLOCKED 🔓</div>
+        <div class="rank-lock-subtitle">${latestRankText}</div>
+      `;
+    }, 750);
+  };
 }
 
 </script>
