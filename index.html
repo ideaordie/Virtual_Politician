@@ -2879,6 +2879,38 @@ async function getLLMResponse(question) {
   }
 }
 
+
+async function storeLeaderboardEligibilityForQuestion(question, qodData) {
+  try {
+    if (!question || !qodData) return;
+
+    const displayQuestion = cleanDisplayQuestion(question);
+    const groupKey = generateClientGroupKey(displayQuestion);
+
+    if (!groupKey) return;
+
+    const leaderboardEligible = qodData.qod_eligible === false ? false : true;
+    const leaderboardReason = qodData.qod_eligible === false
+      ? (qodData.qod_flag_reason || "qod_ineligible")
+      : "";
+
+    const { error } = await supabaseClient.rpc(
+      "update_virtual_politician_leaderboard_flags",
+      {
+        input_group_key: groupKey,
+        input_leaderboard_eligible: leaderboardEligible,
+        input_leaderboard_flag_reason: leaderboardReason
+      }
+    );
+
+    if (error) {
+      console.log("Leaderboard eligibility RPC unavailable:", error.message);
+    }
+  } catch (error) {
+    console.log("Leaderboard eligibility update unavailable.");
+  }
+}
+
 async function storeQodEligibilityForQuestion(question, qodData) {
   try {
     if (!question || !qodData) return;
@@ -3044,6 +3076,10 @@ function renderQuestionRows(items) {
   const list = document.getElementById("topQuestionsList");
   if (!list) return;
 
+  items = Array.isArray(items)
+    ? items.filter(item => item && item.leaderboard_eligible !== false)
+    : items;
+
   list.innerHTML = "";
 
   if (!items || items.length === 0) {
@@ -3123,7 +3159,8 @@ async function showAllTimeLeaderboard() {
   try {
     const { data, error } = await supabaseClient
       .from("virtual_politician_questions")
-      .select("display_question, count, group_key, likes, dislikes")
+      .select("display_question, count, group_key, likes, dislikes, leaderboard_eligible, leaderboard_flag_reason")
+      .neq("leaderboard_eligible", false)
       .order("count", { ascending: false })
       .order("updated_at", { ascending: false })
       .order("id", { ascending: true })
@@ -3685,12 +3722,25 @@ async function answerQuestion() {
     setTimeout(async () => {
       const rankMessage = await rankMessagePromise;
       await storeQodEligibilityForQuestion(submittedQuestion, responsePayload);
+      await storeLeaderboardEligibilityForQuestion(submittedQuestion, responsePayload);
 
       const safeRankMessage = rankMessage && String(rankMessage).trim()
         ? rankMessage
         : "Your question was added to the leaderboard";
 
-      showRankUnlock(submittedQuestion, responseTextForShare, safeRankMessage);
+      if (responsePayload?.qod_eligible === false) {
+        const panel = document.getElementById("rankUnlockPanel");
+        if (panel) {
+          panel.classList.remove("hidden");
+          panel.innerHTML = `
+            <div class="rank-lock-title">RESPONSE RECORDED</div>
+            <div class="rank-lock-subtitle">This question was answered, but not added to the public leaderboard.</div>
+          `;
+        }
+      } else {
+        showRankUnlock(submittedQuestion, responseTextForShare, safeRankMessage);
+      }
+
       revealTopQuestionsPanel();
       loadQuestionOfTheDay();
 
