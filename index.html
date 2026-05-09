@@ -2830,6 +2830,8 @@ function getRandomResponse() {
 
 
 async function getLLMResponse(question) {
+  const fallbackAnswer = getRandomResponse();
+
   try {
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/virtual-politician-response`,
@@ -2845,7 +2847,11 @@ async function getLLMResponse(question) {
     );
 
     if (!response.ok) {
-      return getRandomResponse();
+      return {
+        answer: fallbackAnswer,
+        qod_eligible: true,
+        qod_flag_reason: "llm_http_fallback"
+      };
     }
 
     const data = await response.json();
@@ -2859,15 +2865,46 @@ async function getLLMResponse(question) {
       data?.choices?.[0]?.message?.content ||
       data?.output?.[0]?.content?.[0]?.text;
 
-    if (typeof answer === "string" && answer.trim()) {
-      return answer.trim();
-    }
-
-    return getRandomResponse();
+    return {
+      answer: (typeof answer === "string" && answer.trim()) ? answer.trim() : fallbackAnswer,
+      qod_eligible: typeof data?.qod_eligible === "boolean" ? data.qod_eligible : true,
+      qod_flag_reason: typeof data?.qod_flag_reason === "string" ? data.qod_flag_reason : ""
+    };
   } catch (error) {
-    return getRandomResponse();
+    return {
+      answer: fallbackAnswer,
+      qod_eligible: true,
+      qod_flag_reason: "llm_fetch_fallback"
+    };
   }
 }
+
+async function storeQodEligibilityForQuestion(question, qodData) {
+  try {
+    if (!question || !qodData) return;
+
+    const displayQuestion = cleanDisplayQuestion(question);
+    const groupKey = generateClientGroupKey(displayQuestion);
+
+    if (!groupKey) return;
+
+    const { error } = await supabaseClient.rpc(
+      "update_latest_virtual_politician_qod_flags",
+      {
+        input_group_key: groupKey,
+        input_qod_eligible: qodData.qod_eligible === false ? false : true,
+        input_qod_flag_reason: qodData.qod_flag_reason || ""
+      }
+    );
+
+    if (error) {
+      console.log("QOD eligibility RPC unavailable:", error.message);
+    }
+  } catch (error) {
+    console.log("QOD eligibility update unavailable.");
+  }
+}
+
 
 
 
@@ -3639,13 +3676,16 @@ async function answerQuestion() {
 
   setTimeout(async () => {
     journeyStage.classList.remove("show");
-    const responseTextForShare = await responseMessagePromise;
+    const responsePayload = await responseMessagePromise;
+    const responseTextForShare = responsePayload?.answer || getRandomResponse();
     reply.textContent = responseTextForShare;
     reply.classList.add("show");
     playFartBurst();
 
     setTimeout(async () => {
       const rankMessage = await rankMessagePromise;
+      await storeQodEligibilityForQuestion(submittedQuestion, responsePayload);
+
       const safeRankMessage = rankMessage && String(rankMessage).trim()
         ? rankMessage
         : "Your question was added to the leaderboard";
