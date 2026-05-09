@@ -2456,6 +2456,17 @@ textarea::placeholder,
   to { opacity: 1; transform: translateY(0); }
 }
 
+
+/* v3.9.3 persistent LLM response readability */
+#reply.reply.show {
+  min-height: auto !important;
+}
+
+#reply.reply {
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 async function submitQuestionViaRPC(question, xHandle = "") {
@@ -2816,6 +2827,51 @@ const askBtn = document.getElementById("askBtn");
 function getRandomResponse() {
   return RESPONSES[Math.floor(Math.random() * RESPONSES.length)];
 }
+
+
+async function getLLMResponse(question) {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/virtual-politician-response`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ question })
+      }
+    );
+
+    if (!response.ok) {
+      return getRandomResponse();
+    }
+
+    const data = await response.json();
+
+    const answer =
+      data?.answer ||
+      data?.message ||
+      data?.data?.answer ||
+      data?.result?.answer ||
+      data?.output_text ||
+      data?.choices?.[0]?.message?.content ||
+      data?.output?.[0]?.content?.[0]?.text;
+
+    if (typeof answer === "string" && answer.trim()) {
+      return answer.trim();
+    }
+
+    return getRandomResponse();
+  } catch (error) {
+    return getRandomResponse();
+  }
+}
+
+
+
+
 
 function updateButtonState() {
   const hasText = questionInput.value.trim().length > 0;
@@ -3548,6 +3604,7 @@ async function answerQuestion() {
   const submittedQuestion = questionInput.value.trim();
   const submittedXHandle = document.getElementById("xHandle")?.value?.trim() || "";
   const rankMessagePromise = submitQuestionViaRPC(submittedQuestion, submittedXHandle);
+  const responseMessagePromise = getLLMResponse(submittedQuestion);
 
   const reply = document.getElementById("reply");
   const journeyStage = document.getElementById("journeyStage");
@@ -3580,42 +3637,32 @@ async function answerQuestion() {
     journeyStage.classList.add("show");
   }, 550);
 
-  setTimeout(() => {
+  setTimeout(async () => {
     journeyStage.classList.remove("show");
-    const responseTextForShare = getRandomResponse();
+    const responseTextForShare = await responseMessagePromise;
     reply.textContent = responseTextForShare;
     reply.classList.add("show");
     playFartBurst();
 
     setTimeout(async () => {
-      reply.classList.remove("show");
-
       const rankMessage = await rankMessagePromise;
       const safeRankMessage = rankMessage && String(rankMessage).trim()
         ? rankMessage
         : "Your question was added to the leaderboard";
 
-      setTimeout(() => {
-        reply.textContent = "Your leaderboard rank is ready.";
-        reply.classList.add("show");
-        showRankUnlock(submittedQuestion, responseTextForShare, safeRankMessage);
-        revealTopQuestionsPanel();
-        loadQuestionOfTheDay();
+      showRankUnlock(submittedQuestion, responseTextForShare, safeRankMessage);
+      revealTopQuestionsPanel();
+      loadQuestionOfTheDay();
 
+      const realPoliticianButton = document.querySelector(".real-politician-after-response");
+      if (realPoliticianButton) {
         setTimeout(() => {
-          reply.classList.remove("show");
+          realPoliticianButton.classList.add("visible");
+        }, 250);
+      }
 
-          const realPoliticianButton = document.querySelector(".real-politician-after-response");
-          if (realPoliticianButton) {
-            setTimeout(() => {
-              realPoliticianButton.classList.add("visible");
-            }, 250);
-          }
-
-          updateButtonState();
-        }, 4000);
-      }, 400);
-    }, 4000);
+      updateButtonState();
+    }, 1400);
 
   }, 3550);
 }
@@ -5545,6 +5592,17 @@ textarea::placeholder,
 /* v3.7.23 user/politician meeting pause refinement */
 .pixel-character.cartoon-user {
   animation-timing-function: ease-in-out !important;
+}
+
+
+/* v3.9.3 persistent LLM response readability */
+#reply.reply.show {
+  min-height: auto !important;
+}
+
+#reply.reply {
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
 }
 
 </style>
